@@ -1,0 +1,14 @@
+{
+  "name": "@alexgyver/utils",
+  "version": "0.0.2",
+  "description": "Some util functions",
+  "main": "./utils.js",
+  "module": "./utils.js",
+  "types": "./utils.js",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/GyverLibs/utils.js.git"
+  },
+  "author": "AlexGyver <alex@alexgyver.ru>",
+  "license": "MIT"
+}
