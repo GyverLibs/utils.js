@@ -8,10 +8,23 @@ export const map = (x, in_min, in_max, out_min, out_max) => (in_max == in_min) ?
 export const parseFloatNoNaN = (str) => { let f = parseFloat(str); return isNaN(f) ? 0 : f; }
 
 //#region misc
-export const sleep = ms => new Promise(r => setTimeout(r, ms));
-
+export const isTouch = () => "ontouchstart" in window.document.documentElement;
+export const sleep = (ms) => new Promise(r => setTimeout(r, ms));
 export const last = (arr, i = 1) => arr[arr.length - i];
+export const clipWrite = (str) => navigator.clipboard.writeText(str);
+export const clipRead = () => navigator.clipboard.readText();
+export const encodeText = (str) => {
+    let enc = new TextEncoder();
+    return enc.encode(str);
+}
+export const download = (blob, name) => {
+    let link = document.createElement('a');
+    link.href = window.URL.createObjectURL(blob);
+    link.download = name;
+    link.click();
+}
 
+//#region hash
 export function hash(str) {
     let h = new Uint32Array([0]);
     for (let i = 0; i < str.length; i++) {
@@ -20,39 +33,83 @@ export function hash(str) {
     return h[0];
 }
 
+export function crc32(data) {
+    let crc = new Uint32Array(1);
+    crc[0] = 0;
+    crc[0] = ~crc[0];
+    let str = (typeof (data) === 'string');
+    for (let i = 0; i < data.length; i++) {
+        crc[0] ^= str ? data[i].charCodeAt(0) : data[i];
+        for (let i = 0; i < 8; i++) crc[0] = (crc[0] & 1) ? ((crc[0] / 2) ^ 0x4C11DB7) : (crc[0] / 2);
+    }
+    crc[0] = ~crc[0];
+    return crc[0];
+}
+
 //#region time
 export const now = () => (new Date()).getTime();
 export const localTime = (unix) => new Date(unix - (new Date().getTimezoneOffset()) * 60000);
 
+export class Timer {
+    constructor(isTout, cb, time) {
+        this.tout = isTout;
+        this.cb = cb;
+        this.time = time;
+    }
+    setTime(time) {
+        this.time = time;
+    }
+    setCb(cb) {
+        this.cb = cb;
+    }
+    start() {
+        if (this.tmr) return;
+        this.tout ? setTimeout(() => { this.tmr = null, this.cb() }, this.time) : setInterval(this.cb, this.time);
+    }
+    restart() {
+        this.stop();
+        this.start();
+    }
+    stop() {
+        if (this.tmr) this.tout ? clearTimeout(this.tmr) : clearInterval(this.tmr);
+        this.tmr = null;
+    }
+    running() {
+        return this.tmr;
+    }
+}
+
 //#region render
 export const waitFrame = () => new Promise(requestAnimationFrame);
 
-export async function wait2Frame() {
-    await waitFrame();
-    await waitFrame();
-}
-
-export async function waitRender(elm, cb = null) {
-    return new Promise(res => {
-        let e = elm;
-        while (e.parentNode) e = e.parentNode;
-        if (e instanceof Document) {
-            if (cb) cb(elm);
-            res(elm);
-        }
-        const obs = new MutationObserver((mut) => {
-            if (mut[0].addedNodes.length === 0) return;
-            if (Array.prototype.indexOf.call(mut[0].addedNodes, e) === -1) return;
-            obs.disconnect();
-            if (cb) cb(elm);
-            res(elm);
-        });
-        obs.observe(window.document.body, { childList: true, subtree: true });
-    });
+export async function waitRender(el, cb = null, tries = 10) {
+    while (!el.clientWidth && --tries) await waitFrame();
+    if (!tries) el = null;
+    if (cb) cb(el);
+    return el;
+    // return new Promise(res => {
+    //     let e = elm;
+    //     while (e.parentNode) e = e.parentNode;
+    //     if (e instanceof Document) {
+    //         if (cb) cb(elm);
+    //         res(elm);
+    //     }
+    //     const obs = new MutationObserver((mut) => {
+    //         if (mut[0].addedNodes.length === 0) return;
+    //         if (Array.prototype.indexOf.call(mut[0].addedNodes, elm) === -1) return;
+    //         obs.disconnect();
+    //         if (cb) cb(elm);
+    //         res(elm);
+    //     });
+    //     obs.observe(window.document.body, { childList: true, subtree: true });
+    // });
 }
 
 //#region color
 export const intToColor = (int) => "#" + Number(int).toString(16).padStart(6, '0');
+export const rgbTo24 = (r, g, b) => (r << 16) | (g << 8) | b;
+export const rgbaTo24 = (r, g, b, a) => (rgbTo24(r, g, b) << 8) | a;
+export const HEXtoRGB = (hex) => [(hex >> 16) & 0xff, (hex >> 8) & 0xff, hex & 0xff];
 
 // (r, g, b, a: 8bit|float) | (r, g, b) | (rrggbb 24bit) | (#rgb) | (#rgba) | (#rrggbb) | (#rrggbbaa)
 export function makeWebColor(col, g, b, a) {
@@ -75,11 +132,26 @@ export function makeWebColor(col, g, b, a) {
     }
 }
 
+// (0-360, 0-1, 0-1)
 export const hsl2rgb = (h, s, l) => {
     h %= 360;
     let a = s * Math.min(l, 1 - l);
     let f = (n, k = (n + h / 30) % 12) => l - a * Math.max(Math.min(k - 3, 9 - k, 1), -1);
     return 'rgb(' + Math.round(f(0) * 255) + ',' + Math.round(f(8) * 255) + ',' + Math.round(f(4) * 255) + ')';
+}
+export const hsl2rgb8 = (h, s, l) => hsl2rgb(h / 255 * 360, s / 255, l / 255);
+export const hsv2rgb8 = (h, s, v) => hsl2rgb8(h, s, v / 2);
+
+export const adjustColor = (col24, ratio) => {
+    let res = 0;
+    for (let i = 0; i < 3; i++) {
+        let comp = (col24 & 0xff0000) >> 16;
+        comp = Math.min(255, Math.floor((comp + 1) * ratio));
+        res <<= 8;
+        res |= comp;
+        col24 <<= 8;
+    }
+    return res;
 }
 
 //#region http
@@ -107,4 +179,20 @@ export async function fetchTimeout(url, timeout = 5000) {
     } catch (e) { }
     clearTimeout(tmr);
     return res && res.ok ? res : null;
+}
+
+//#region LS
+export class LS {
+    static has(key) {
+        return localStorage.hasOwnProperty(key);
+    }
+    static get(key) {
+        return JSON.parse(localStorage.getItem(key));
+    }
+    static remove(key) {
+        localStorage.removeItem(key);
+    }
+    static set(key, val) {
+        localStorage.setItem(key, JSON.stringify(val));
+    }
 }
