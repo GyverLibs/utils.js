@@ -122,7 +122,7 @@ export function makeWebColor(col, g, b, a) {
             switch (col.length) {
                 case 4: case 5: return '#' + col[1] + col[1] + col[2] + col[2] + col[3] + col[3] + (col.length == 5 ? (col[4] + col[4]) : '');
                 case 7: case 9: return col;
-                default: return '#000';
+                default: return '#000000';
             }
         } else if (parseInt(col)) {
             return makeWebColor(parseInt(col));
@@ -152,6 +152,20 @@ export const adjustColor = (col24, ratio) => {
         col24 <<= 8;
     }
     return res;
+}
+
+export const contrastColor = (col) => {
+    let mid = 0;
+    const make = (arr, base) => arr.forEach((x, i) => (i < 3) && (mid += parseInt(x, base) / 3));
+
+    col = makeWebColor(col);
+    if (col.startsWith('#')) {
+        make(col.slice(1).match(/.{2}/g), 16);
+    } else if (col.startsWith('rgb')) {
+        let res = col.match(/\((.+?)\)/);
+        if (res) make(res[1].split(','), 10);
+    }
+    return mid < 128 ? 'white' : 'black';
 }
 
 //#region http
