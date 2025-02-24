@@ -1,13 +1,20 @@
 {
   "name": "@alexgyver/utils",
-  "version": "1.0.5",
+  "version": "1.0.6",
   "description": "Some util functions",
   "main": "./utils.js",
   "module": "./utils.js",
   "types": "./utils.js",
+  "scripts": {
+    "build": "webpack --config ./webpack.config.js"
+  },
   "repository": {
     "type": "git",
     "url": "git+https://github.com/GyverLibs/utils.js.git"
+  },
+  "devDependencies": {
+    "webpack": "^5.98.0",
+    "webpack-cli": "^6.0.1"
   },
   "author": "AlexGyver <alex@alexgyver.ru>",
   "license": "MIT"

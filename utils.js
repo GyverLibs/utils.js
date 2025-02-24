@@ -46,6 +46,12 @@ export function crc32(data) {
     return crc[0];
 }
 
+export function addStyle(css) {
+    let style = document.createElement('style');
+    style.innerText = css;
+    document.head.appendChild(style);
+}
+
 //#region time
 export const now = () => (new Date()).getTime();
 export const localTime = (unix) => new Date(unix - (new Date().getTimezoneOffset()) * 60000);
