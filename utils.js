@@ -6,6 +6,7 @@ export const degrees = (rad) => rad * 57.2957795130;
 export const constrain = (x, min, max) => x < min ? min : (x > max ? max : x);
 export const map = (x, in_min, in_max, out_min, out_max) => (in_max == in_min) ? out_min : ((x - in_min) * (out_max - out_min) / (in_max - in_min) + out_min);
 export const parseFloatNoNaN = (str) => { let f = parseFloat(str); return isNaN(f) ? 0 : f; }
+export const findFloat = (str) => { let res = str.match(/\-?\d*\.?\d*/gm); return res ? res[0] : '0'; }
 
 //#region misc
 export const isTouch = () => "ontouchstart" in window.document.documentElement;
@@ -22,6 +23,25 @@ export const download = (blob, name) => {
     link.href = window.URL.createObjectURL(blob);
     link.download = name;
     link.click();
+}
+
+export function parseCSV(str) {
+    // https://stackoverflow.com/a/14991797
+    const arr = [];
+    let quote = false;
+    for (let row = 0, col = 0, c = 0; c < str.length; c++) {
+        let cc = str[c], nc = str[c + 1];
+        arr[row] = arr[row] || [];
+        arr[row][col] = arr[row][col] || '';
+        if (cc == '"' && quote && nc == '"') { arr[row][col] += cc; ++c; continue; }
+        if (cc == '"') { quote = !quote; continue; }
+        if ((cc == ';' || cc == ',') && !quote) { ++col; continue; }
+        if (cc == '\r' && nc == '\n' && !quote) { ++row; col = 0; ++c; continue; }
+        if (cc == '\n' && !quote) { ++row; col = 0; continue; }
+        if (cc == '\r' && !quote) { ++row; col = 0; continue; }
+        arr[row][col] += cc;
+    }
+    return arr;
 }
 
 //#region hash
@@ -160,7 +180,7 @@ export const adjustColor = (col24, ratio) => {
     return res;
 }
 
-export const contrastColor = (col) => {
+export const midColor = (col) => {
     let mid = 0;
     const make = (arr, base) => arr.forEach((x, i) => (i < 3) && (mid += parseInt(x, base) / 3));
 
@@ -171,8 +191,10 @@ export const contrastColor = (col) => {
         let res = col.match(/\((.+?)\)/);
         if (res) make(res[1].split(','), 10);
     }
-    return mid < 128 ? 'white' : 'black';
+    return mid;
 }
+
+export const contrastColor = (col, trsh = 128) => midColor(col) < trsh ? 'white' : 'black';
 
 //#region http
 export function httpPost(url, data, progress) {
