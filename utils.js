@@ -180,18 +180,26 @@ export const adjustColor = (col24, ratio) => {
     return res;
 }
 
-export const midColor = (col) => {
-    let mid = 0;
-    const make = (arr, base) => arr.forEach((x, i) => (i < 3) && (mid += parseInt(x, base) / 3));
-
+export const splitColor = (col) => {
     col = makeWebColor(col);
     if (col.startsWith('#')) {
-        make(col.slice(1).match(/.{2}/g), 16);
+        return col.slice(1).match(/.{2}/g).map(x => parseInt(x, 16));
     } else if (col.startsWith('rgb')) {
         let res = col.match(/\((.+?)\)/);
-        if (res) make(res[1].split(','), 10);
+        if (res) return res[1].split(',').map(Number);
     }
-    return mid;
+    return [0, 0, 0];
+}
+
+export const midColor = (col) => {
+    let mid = 0;
+    splitColor(col).forEach((x, i) => (i < 3) && (mid += x));
+    return mid / 3;
+}
+
+export const deltaColor = (col) => {
+    col = splitColor(col);
+    return Math.max(...col) - Math.min(...col);
 }
 
 export const contrastColor = (col, trsh = 128) => midColor(col) < trsh ? 'white' : 'black';
