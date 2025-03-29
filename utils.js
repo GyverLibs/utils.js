@@ -67,9 +67,12 @@ export function crc32(data) {
 }
 
 export function addStyle(css) {
-    let style = document.createElement('style');
-    style.innerText = css;
-    document.head.appendChild(style);
+    if (css) {
+        let style = document.createElement('style');
+        style.innerText = css;
+        document.head.appendChild(style);
+    }
+    return null;
 }
 
 //#region time
@@ -243,6 +246,10 @@ export class LS {
         localStorage.removeItem(key);
     }
     static set(key, val) {
-        localStorage.setItem(key, JSON.stringify(val));
+        try {
+            localStorage.setItem(key, JSON.stringify(val));
+        } catch {
+            console.log("Data is too big" + JSON.stringify(val).length);
+        }
     }
 }
