@@ -1,6 +1,6 @@
 {
   "name": "@alexgyver/utils",
-  "version": "1.0.12",
+  "version": "1.0.14",
   "description": "Some util functions",
   "main": "./utils.js",
   "module": "./utils.js",

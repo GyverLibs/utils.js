@@ -14,10 +14,7 @@ export const sleep = (ms) => new Promise(r => setTimeout(r, ms));
 export const last = (arr, i = 1) => arr[arr.length - i];
 export const clipWrite = (str) => navigator.clipboard.writeText(str);
 export const clipRead = () => navigator.clipboard.readText();
-export const encodeText = (str) => {
-    let enc = new TextEncoder();
-    return enc.encode(str);
-}
+export const encodeText = (str) => (new TextEncoder()).encode(str);
 export const download = (blob, name) => {
     let link = document.createElement('a');
     link.href = window.URL.createObjectURL(blob);
@@ -66,6 +63,7 @@ export function crc32(data) {
     return crc[0];
 }
 
+//#region elements
 export function addStyle(css) {
     if (css) {
         let style = document.createElement('style');
@@ -73,6 +71,9 @@ export function addStyle(css) {
         document.head.appendChild(style);
     }
     return null;
+}
+export function clearNode(n) {
+    while (n.firstChild) n.removeChild(n.lastChild);
 }
 
 //#region time
@@ -109,29 +110,20 @@ export class Timer {
 }
 
 //#region render
-export const waitFrame = () => new Promise(requestAnimationFrame);
+export const waitFrame = () => new Promise(r => requestAnimationFrame(() => setTimeout(r, 0)));
+
+// Element/Array
+export const checkRender = (els) => {
+    if (!Array.isArray(els)) return els.clientWidth || els.clientHeight;
+    for (let el of els) if (!checkRender(el)) return 0;
+    return 1;
+}
 
 export async function waitRender(el, cb = null, tries = 10) {
-    while (!el.clientWidth && --tries) await waitFrame();
+    while (!checkRender(el) && --tries) await waitFrame();
     if (!tries) el = null;
     if (cb) cb(el);
     return el;
-    // return new Promise(res => {
-    //     let e = elm;
-    //     while (e.parentNode) e = e.parentNode;
-    //     if (e instanceof Document) {
-    //         if (cb) cb(elm);
-    //         res(elm);
-    //     }
-    //     const obs = new MutationObserver((mut) => {
-    //         if (mut[0].addedNodes.length === 0) return;
-    //         if (Array.prototype.indexOf.call(mut[0].addedNodes, elm) === -1) return;
-    //         obs.disconnect();
-    //         if (cb) cb(elm);
-    //         res(elm);
-    //     });
-    //     obs.observe(window.document.body, { childList: true, subtree: true });
-    // });
 }
 
 //#region color
