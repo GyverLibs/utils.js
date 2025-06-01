@@ -7,6 +7,7 @@ export const constrain = (x, min, max) => x < min ? min : (x > max ? max : x);
 export const map = (x, in_min, in_max, out_min, out_max) => (in_max == in_min) ? out_min : ((x - in_min) * (out_max - out_min) / (in_max - in_min) + out_min);
 export const parseFloatNoNaN = (str) => { let f = parseFloat(str); return isNaN(f) ? 0 : f; }
 export const findFloat = (str) => { let res = str.match(/\-?\d*\.?\d*/gm); return res ? res[0] : '0'; }
+export const formatToStep = (val, step) => { let d = step.toString().split('.')[1]; return Number(val).toFixed(d ? d.length : 0); }
 
 //#region misc
 export const isTouch = () => "ontouchstart" in window.document.documentElement;
@@ -215,15 +216,45 @@ export function httpPost(url, data, progress) {
     });
 }
 
-export async function fetchTimeout(url, timeout = 5000) {
-    const controller = new AbortController();
-    const tmr = setTimeout(() => controller.abort(), timeout);
-    let res = null;
+// fetch с поддержкой { timeout: N }
+export async function fetchT(url, params = {}) {
+    let res = null, ctrl, tmr;
+    if (params.timeout) {
+        ctrl = new AbortController();
+        tmr = setTimeout(() => ctrl.abort(), params.timeout);
+        params.signal = ctrl.signal;
+    }
     try {
-        res = await fetch(url, { signal: controller.signal });
+        res = await fetch(url, params);
     } catch (e) { }
     clearTimeout(tmr);
-    return res && res.ok ? res : null;
+    return (res && res.ok) ? res : null;
+}
+
+export async function fetchTimeout(url, timeout = 5000) {
+    return fetchT(url, { timeout: timeout });
+}
+
+export class FetchQueue {
+    clear() {
+        this._queue.forEach(f => f.res(null));
+        this._queue = [];
+    }
+
+    async fetch(url, params) {
+        return new Promise(res => {
+            this._queue.push({ url, params, res });
+            if (this._queue.length == 1) this._next();
+        });
+    }
+
+    async _next() {
+        let f = this._queue[0];
+        f.res(await fetchT(f.url, f.params));
+        this._queue.shift();
+        if (this._queue.length) this._next();
+    }
+    _queue = [];
 }
 
 //#region LS
