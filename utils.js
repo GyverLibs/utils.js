@@ -16,11 +16,21 @@ export const last = (arr, i = 1) => arr[arr.length - i];
 export const clipWrite = (str) => navigator.clipboard.writeText(str);
 export const clipRead = () => navigator.clipboard.readText();
 export const encodeText = (str) => (new TextEncoder()).encode(str);
-export const download = (blob, name) => {
+
+export function download(blob, name) {
     let link = document.createElement('a');
     link.href = window.URL.createObjectURL(blob);
     link.download = name;
     link.click();
+}
+
+export async function makeDefer() {
+    let resolve, reject;
+    const wait = new Promise((res, rej) => {
+        resolve = res;
+        reject = rej;
+    });
+    return { wait, resolve, reject };
 }
 
 export function parseCSV(str) {
@@ -90,7 +100,7 @@ export class Timer {
     setTime(time) {
         this.time = time;
     }
-    setCb(cb) {
+    onReady(cb) {
         this.cb = cb;
     }
     start() {
@@ -102,11 +112,23 @@ export class Timer {
         this.start();
     }
     stop() {
-        if (this.tmr) this.tout ? clearTimeout(this.tmr) : clearInterval(this.tmr);
+        this.tout ? clearTimeout(this.tmr) : clearInterval(this.tmr);
         this.tmr = null;
     }
     running() {
-        return this.tmr;
+        return this.tmr != null;
+    }
+}
+
+export class Interval extends Timer {
+    constructor(cb, time) {
+        super(false, cb, time);
+    }
+}
+
+export class Timeout extends Timer {
+    constructor(cb, time) {
+        super(true, cb, time);
     }
 }
 
@@ -254,6 +276,7 @@ export class FetchQueue {
         this._queue.shift();
         if (this._queue.length) this._next();
     }
+
     _queue = [];
 }
 
@@ -271,8 +294,8 @@ export class LS {
     static set(key, val) {
         try {
             localStorage.setItem(key, JSON.stringify(val));
-        } catch {
-            console.log("Data is too big" + JSON.stringify(val).length);
+        } catch (e) {
+            console.error(e);
         }
     }
 }
