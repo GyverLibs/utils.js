@@ -18,36 +18,41 @@ export const clipRead = () => navigator.clipboard.readText();
 export const encodeText = (str) => (new TextEncoder()).encode(str);
 export const makeCopy = v => (typeof v === 'object' && v !== null) ? (Array.isArray(v) ? [...v] : { ...v }) : v;
 
+export function shallowEqual(a, b) {
+    if (a === b) return true;
+    if (typeof a !== 'object' || typeof b !== 'object' || a === null || b === null) return false;
+
+    const keysA = Object.keys(a);
+    const keysB = Object.keys(b);
+
+    if (keysA.length !== keysB.length) return false;
+
+    for (let key of keysA) {
+        if (a[key] !== b[key]) return false;
+    }
+    return true;
+}
+
 export class DelaySender {
-    constructor(send_func, period) {
-        this.send_func = send_func;
+    constructor(send_cb, period) {
+        this.send_cb = send_cb;
         this.period = period;
     }
 
-    send(value) {
-        value = makeCopy(value);
-        this.cache = value;
-
-        if (this.inp_t) {
-            clearTimeout(this.inp_t);
+    async send(value) {
+        if (!this.sending) {
+            this.sending = true;
+            await this.send_cb(value);
+            await sleep(this.period);
+            this.sending = false;
+            if (this.cache !== undefined && !shallowEqual(this.cache, value)) {
+                let t = this.cache;
+                this.cache = undefined;
+                this.send(t);
+            }
         } else {
-            this.send_func(value);
-            this.prev = value;
-            this.send_t = setInterval(() => {
-                if ((typeof this.cache === 'object' && this.cache !== null) ?
-                    (JSON.stringify(this.prev) != JSON.stringify(this.cache)) :
-                    (this.prev !== this.cache)) {
-                    this.prev = this.cache;
-                    this.send_func(this.cache);
-                }
-            }, this.period);
+            this.cache = value;
         }
-
-        this.inp_t = setTimeout(() => {
-            clearInterval(this.send_t);
-            this.send_t = null;
-            this.inp_t = null;
-        }, this.period);
     }
 }
 
