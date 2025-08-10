@@ -16,6 +16,40 @@ export const last = (arr, i = 1) => arr[arr.length - i];
 export const clipWrite = (str) => navigator.clipboard.writeText(str);
 export const clipRead = () => navigator.clipboard.readText();
 export const encodeText = (str) => (new TextEncoder()).encode(str);
+export const makeCopy = v => (typeof v === 'object' && v !== null) ? (Array.isArray(v) ? [...v] : { ...v }) : v;
+
+export class DelaySender {
+    constructor(send_func, period) {
+        this.send_func = send_func;
+        this.period = period;
+    }
+
+    send(value) {
+        value = makeCopy(value);
+        this.cache = value;
+
+        if (this.inp_t) {
+            clearTimeout(this.inp_t);
+        } else {
+            this.send_func(value);
+            this.prev = value;
+            this.send_t = setInterval(() => {
+                if ((typeof this.cache === 'object' && this.cache !== null) ?
+                    (JSON.stringify(this.prev) != JSON.stringify(this.cache)) :
+                    (this.prev !== this.cache)) {
+                    this.prev = this.cache;
+                    this.send_func(this.cache);
+                }
+            }, this.period);
+        }
+
+        this.inp_t = setTimeout(() => {
+            clearInterval(this.send_t);
+            this.send_t = null;
+            this.inp_t = null;
+        }, this.period);
+    }
+}
 
 export function download(blob, name) {
     let link = document.createElement('a');
