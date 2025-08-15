@@ -39,13 +39,13 @@ export class DelaySender {
         this.period = period;
     }
 
-    async send(value) {
+    async send(value, allowRepeat = true) {
         if (!this.sending) {
             this.sending = true;
             await this.send_cb(value);
             await sleep(this.period);
             this.sending = false;
-            if (this.cache !== undefined && !shallowEqual(this.cache, value)) {
+            if (this.cache !== undefined && (allowRepeat || !shallowEqual(this.cache, value))) {
                 let t = this.cache;
                 this.cache = undefined;
                 this.send(t);
