@@ -4,6 +4,7 @@ export const randomInt = (min, max) => Math.floor(random(min, max));
 export const radians = (deg) => deg * 0.0174532925;
 export const degrees = (rad) => rad * 57.2957795130;
 export const constrain = (x, min, max) => x < min ? min : (x > max ? max : x);
+export const roundInt = (x) => Math.round(x) << 0;
 export const map = (x, in_min, in_max, out_min, out_max) => (in_max == in_min) ? out_min : ((x - in_min) * (out_max - out_min) / (in_max - in_min) + out_min);
 export const parseFloatNoNaN = (str) => { let f = parseFloat(str); return isNaN(f) ? 0 : f; }
 export const findFloat = (str) => { let res = str.match(/\-?\d*\.?\d*/gm); return res ? res[0] : '0'; }
@@ -190,9 +191,26 @@ export async function waitRender(el, cb = null, tries = 10) {
 
 //#region color
 export const intToColor = (int) => "#" + Number(int).toString(16).padStart(6, '0');
+export const colorToInt = (col) => {
+    let col4 = col => parseInt(col[1] + col[1] + col[2] + col[2] + col[3] + col[3], 16);
+    let col7 = col => parseInt(col.slice(1, 7), 16);
+
+    if (col && col[0] == '#') {
+        switch (col.length) {
+            case 4: return col4(col);
+            case 5: return col4(col) | (parseInt(col[4] + col[4], 16) << 24);
+            case 7: return col7(col);
+            case 9: return col7(col) | (parseInt(col.slice(7, 9), 16) << 24);
+        }
+    }
+    return 0;
+}
 export const rgbTo24 = (r, g, b) => (r << 16) | (g << 8) | b;
-export const rgbaTo24 = (r, g, b, a) => (rgbTo24(r, g, b) << 8) | a;
-export const HEXtoRGB = (hex) => [(hex >> 16) & 0xff, (hex >> 8) & 0xff, hex & 0xff];
+// export const rgbaTo24 = (r, g, b, a) => (rgbTo24(r, g, b) << 8) | a;
+export const rgbTo888 = rgbTo24;
+export const rgbTo565 = (r, g, b) => ((r & 0b11111000) << 8) | ((g & 0b11111100) << 3) | (b >> 3);
+export const rgbTo233 = (r, g, b) => (r & 0b11000000) | ((g & 0b11100000) >> 2) | ((b & 0b11100000) >> 5);
+export const HEXtoRGB = (hex) => [(hex >> 16) & 0xff, (hex >> 8) & 0xff, hex & 0xff, (hex >> 24) & 0xff];
 
 // (r, g, b, a: 8bit|float) | (r, g, b) | (rrggbb 24bit) | (#rgb) | (#rgba) | (#rrggbb) | (#rrggbbaa)
 export function makeWebColor(col, g, b, a) {
@@ -337,4 +355,92 @@ export class LS {
             console.error(e);
         }
     }
+    static init(key, val) {
+        if (!LS.has(key)) LS.set(key, val);
+    }
+}
+
+//#region md
+export function parseMD(md, depth = 0) {
+    if (depth > 10) return md;
+
+    function parseLists(md) {
+        const lines = md.split('\n');
+        let result = '';
+        let stack = []; //  {type, level}
+
+        for (let line of lines) {
+            const match = /^(\s*)([-]|\d+\.)\s+(.*)$/.exec(line);
+            if (match) {
+                const indent = match[1].length;
+                const type = match[2].match(/^\d/) ? 'ol' : 'ul';
+                const content = match[3];
+                const level = Math.floor(indent / 2);
+
+                if (!stack.length) {
+                    result += `<${type}><li>${content}`;
+                    stack.push({ type, level });
+                    continue;
+                }
+
+                const prev = stack[stack.length - 1];
+
+                if (level > prev.level) {
+                    result += `<${type}><li>${content}`;
+                    stack.push({ type, level });
+                } else if (level === prev.level) {
+                    result += `</li><li>${content}`;
+                } else {
+                    while (stack.length && stack[stack.length - 1].level >= level) {
+                        result += `</li></${stack.pop().type}>`;
+                    }
+                    if (!stack.length || stack[stack.length - 1].type !== type) {
+                        result += `<${type}><li>${content}`;
+                        stack.push({ type, level });
+                    } else {
+                        result += `<li>${content}`;
+                    }
+                }
+            } else {
+                while (stack.length) {
+                    result += `</li></${stack.pop().type}>`;
+                }
+                result += line + '\n';
+            }
+        }
+        while (stack.length) {
+            result += `</li></${stack.pop().type}>`;
+        }
+
+        return result;
+    }
+
+    const codeBlocks = [];
+    md = md.replace(/```([\s\S]*?)```/g, (m, code) => {
+        const id = codeBlocks.length;
+        codeBlocks.push(`<pre><code>${code.replace(/[&<>"']/g, m => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[m]))}</code></pre>`);
+        return `§CODEBLOCK${id}§`;
+    });
+
+    return parseLists(md)
+        .replace(/^---$/gm, '<hr>')
+        .replace(/!\[([^\]]*)\]\(([^)]+)\)/g, '<img src="$2" alt="$1">')
+        .replace(/^###### (.*)$/gm, '<h6>$1</h6>')
+        .replace(/^##### (.*)$/gm, '<h5>$1</h5>')
+        .replace(/^#### (.*)$/gm, '<h4>$1</h4>')
+        .replace(/^### (.*)$/gm, '<h3>$1</h3>')
+        .replace(/^## (.*)$/gm, '<h2>$1</h2>')
+        .replace(/^# (.*)$/gm, '<h1>$1</h1>')
+        .replace(/(^>.*(?:\n>.*)*)/gm, match =>
+            `<blockquote>${parseMD(match.split('\n').map(line => line.replace(/^>\s?/, '')).join('\n'), depth + 1)}</blockquote>`
+        )
+        .replace(/\[spoiler="([^"]+)"\]([\s\S]*?)\[\/spoiler\]/g, (m, name, content) =>
+            `<details><summary>${name}</summary>${parseMD(content, depth + 1)}</details>`
+        )
+        .replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2">$1</a>')
+        .replace(/`([^`]+)`/g, '<code>$1</code>')
+        .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+        .replace(/(^|[\s>])\*([^*\s][^*]*?)\*(?=[\s<]|$)/g, '$1<em>$2</em>')
+        .replace(/^(?!<h\d|<ul|<ol|<pre|<p|<blockquote|<code|<hr|<img|<details|<summary)(.+)$/gm, '<p>$1</p>')
+        .replace(/§CODEBLOCK(\d+)§/g, (_, i) => codeBlocks[i]);
 }
