@@ -17,6 +17,7 @@ export const last = (arr, i = 1) => arr[arr.length - i];
 export const clipWrite = (str) => navigator.clipboard.writeText(str);
 export const clipRead = () => navigator.clipboard.readText();
 export const encodeText = (str) => (new TextEncoder()).encode(str);
+export const decodeText = (str) => (new TextDecoder()).decode(str);
 export const makeCopy = v => (typeof v === 'object' && v !== null) ? (Array.isArray(v) ? [...v] : { ...v }) : v;
 
 export function shallowEqual(a, b) {
@@ -34,37 +35,8 @@ export function shallowEqual(a, b) {
     return true;
 }
 
-export class DelaySender {
-    constructor(send_cb, period) {
-        this.send_cb = send_cb;
-        this.period = period;
-    }
-
-    async send(value, allowRepeat = true) {
-        if (!this.sending) {
-            this.sending = true;
-            await this.send_cb(value);
-            await sleep(this.period);
-            this.sending = false;
-            if (this.cache !== undefined && (allowRepeat || !shallowEqual(this.cache, value))) {
-                let t = this.cache;
-                this.cache = undefined;
-                this.send(t);
-            }
-        } else {
-            this.cache = value;
-        }
-    }
-}
-
-export function download(blob, name) {
-    let link = document.createElement('a');
-    link.href = window.URL.createObjectURL(blob);
-    link.download = name;
-    link.click();
-}
-
 export async function makeDefer() {
+    // const df = makeDefer(); await df.wait ..... df.resolve()
     let resolve, reject;
     const wait = new Promise((res, rej) => {
         resolve = res;
@@ -280,6 +252,36 @@ export const deltaColor = (col) => {
 export const contrastColor = (col, trsh = 128) => midColor(col) < trsh ? 'white' : 'black';
 
 //#region http
+export class DelaySender {
+    constructor(send_cb, period) {
+        this.send_cb = send_cb;
+        this.period = period;
+    }
+
+    async send(value, allowRepeat = true) {
+        if (!this.sending) {
+            this.sending = true;
+            await this.send_cb(value);
+            await sleep(this.period);
+            this.sending = false;
+            if (this.cache !== undefined && (allowRepeat || !shallowEqual(this.cache, value))) {
+                let t = this.cache;
+                this.cache = undefined;
+                this.send(t);
+            }
+        } else {
+            this.cache = value;
+        }
+    }
+}
+
+export function download(blob, name) {
+    let link = document.createElement('a');
+    link.href = window.URL.createObjectURL(blob);
+    link.download = name;
+    link.click();
+}
+
 export function httpPost(url, data, progress) {
     return new Promise(res => {
         let xhr = new XMLHttpRequest();
@@ -335,6 +337,68 @@ export class FetchQueue {
     }
 
     _queue = [];
+}
+
+//#region StreamSplitter
+export class StreamSplitter {
+    ontext = null;
+
+    constructor(eol = /\r?\n/, skipFirst = false) {
+        this._eol = eol;
+        this._skip = skipFirst;
+    }
+
+    reset() {
+        this._buf = "";
+    }
+
+    write(str) {
+        if (!this.ontext) return;
+
+        this._buf += str;
+        let t = this._buf.split(this._eol);
+        if (t.length == 1) return;
+
+        if (t[t.length - 1].length) this._buf = t.pop();
+        else this._buf = "", t.pop();
+
+        if (this._skip) t.shift(), this._skip = false;
+        t.forEach(line => this.ontext(line));
+    }
+
+    _buf = "";
+}
+
+//#region EventEmitter
+export class EventEmitter {
+    constructor() {
+        this.events = {};
+    }
+
+    on(event, listener) {
+        if (!this.events[event]) this.events[event] = [];
+        this.events[event].push(listener);
+        return () => this.off(event, listener);
+    }
+
+    once(event, listener) {
+        const off = this.on(event, (...args) => {
+            off();
+            listener(...args);
+        });
+    }
+
+    emit(event, ...args) {
+        if (this.events[event]) for (let lisn of this.events[event]) lisn(...args);
+    }
+
+    off(event, listener) {
+        if (this.events[event]) this.events[event] = this.events[event].filter(lisn => lisn !== listener);
+    }
+
+    offAll(event) {
+        delete this.events[event];
+    }
 }
 
 //#region LS
