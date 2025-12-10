@@ -20,6 +20,7 @@ export const encodeText = (str) => (new TextEncoder()).encode(str);
 export const decodeText = (str) => (new TextDecoder()).decode(str);
 export const makeCopy = v => (typeof v === 'object' && v !== null) ? (Array.isArray(v) ? [...v] : { ...v }) : v;
 
+//#region shallowEqual
 export function shallowEqual(a, b) {
     if (a === b) return true;
     if (typeof a !== 'object' || typeof b !== 'object' || a === null || b === null) return false;
@@ -35,6 +36,7 @@ export function shallowEqual(a, b) {
     return true;
 }
 
+//#region makeDefer
 export async function makeDefer() {
     // const df = makeDefer(); await df.wait ..... df.resolve()
     let resolve, reject;
@@ -45,6 +47,7 @@ export async function makeDefer() {
     return { wait, resolve, reject };
 }
 
+//#region parseCSV
 export function parseCSV(str) {
     // https://stackoverflow.com/a/14991797
     const arr = [];
@@ -344,8 +347,8 @@ export class StreamSplitter {
     ontext = null;
 
     constructor(eol = /\r?\n/, skipFirst = false) {
-        this._eol = eol;
-        this._skip = skipFirst;
+        this.eol = eol;
+        this.skip = skipFirst;
     }
 
     reset() {
@@ -354,19 +357,72 @@ export class StreamSplitter {
 
     write(str) {
         if (!this.ontext) return;
+        if (!this.eol) {
+            this.ontext(str);
+            return;
+        }
 
         this._buf += str;
-        let t = this._buf.split(this._eol);
+        let t = this._buf.split(this.eol);
         if (t.length == 1) return;
 
         if (t[t.length - 1].length) this._buf = t.pop();
         else this._buf = "", t.pop();
 
-        if (this._skip) t.shift(), this._skip = false;
+        if (this.skip) t.shift(), this.skip = false;
         t.forEach(line => this.ontext(line));
     }
 
     _buf = "";
+}
+
+//#region ShiftBuffer
+export class ShiftBuffer {
+    constructor() {
+        this.chunks = [];
+        this.length = 0;
+    }
+
+    clear() {
+        this.chunks = [];
+    }
+
+    push(data) {
+        this.chunks.push(data);
+        this.length += data.length;
+        return true;
+    }
+
+    shift(n) {
+        if (n > this.length) n = this.length;
+
+        const out = new Uint8Array(n);
+        let offset = 0;
+
+        while (n > 0) {
+            const chunk = this.chunks[0];
+
+            if (n >= chunk.length) {
+                out.set(chunk, offset);
+                offset += chunk.length;
+                n -= chunk.length;
+
+                this.chunks.shift();
+                this.length -= chunk.length;
+            } else {
+                out.set(chunk.subarray(0, n), offset);
+                this.chunks[0] = chunk.subarray(n);
+                this.length -= n;
+                n = 0;
+            }
+        }
+
+        return out;
+    }
+
+    shiftAll() {
+        return this.shift(this.length);
+    }
 }
 
 //#region EventEmitter
