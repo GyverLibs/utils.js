@@ -385,38 +385,38 @@ export class ShiftBuffer {
 
     clear() {
         this.chunks = [];
+        this.length = 0;
     }
 
     push(data) {
+        if (!data || data.length === 0) return false;
         this.chunks.push(data);
         this.length += data.length;
         return true;
     }
 
     shift(n) {
+        if (!this.length || !n) return new Uint8Array(0);
         if (n > this.length) n = this.length;
 
         const out = new Uint8Array(n);
         let offset = 0;
 
-        while (n > 0) {
+        while (offset < n && this.chunks.length > 0) {
             const chunk = this.chunks[0];
 
-            if (n >= chunk.length) {
-                out.set(chunk, offset);
-                offset += chunk.length;
-                n -= chunk.length;
-
+            if (!chunk || chunk.length === 0) {
                 this.chunks.shift();
-                this.length -= chunk.length;
-            } else {
-                out.set(chunk.subarray(0, n), offset);
-                this.chunks[0] = chunk.subarray(n);
-                this.length -= n;
-                n = 0;
+                continue;
             }
-        }
 
+            const take = Math.min(chunk.length, n - offset);
+            out.set(chunk.subarray(0, take), offset);
+            offset += take;
+            if (take === chunk.length) this.chunks.shift();
+            else this.chunks[0] = chunk.subarray(take);
+            this.length -= take;
+        }
         return out;
     }
 
