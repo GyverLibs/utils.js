@@ -37,7 +37,7 @@ export function shallowEqual(a, b) {
 }
 
 //#region makeDefer
-export async function makeDefer() {
+export function makeDefer() {
     // const df = makeDefer(); await df.wait ..... df.resolve()
     let resolve, reject;
     const wait = new Promise((res, rej) => {
@@ -120,7 +120,7 @@ export class Timer {
     }
     start() {
         if (this.tmr) return;
-        this.tout ? setTimeout(() => { this.tmr = null, this.cb() }, this.time) : setInterval(this.cb, this.time);
+        this.tmr = this.tout ? setTimeout(() => { this.tmr = null, this.cb() }, this.time) : setInterval(this.cb, this.time);
     }
     restart() {
         this.stop();
@@ -173,7 +173,7 @@ export const colorToInt = (col) => {
     if (col && col[0] == '#') {
         switch (col.length) {
             case 4: return col4(col);
-            case 5: return col4(col) | (parseInt(col[4] + col[4], 16) << 24);
+            case 5: return (col4(col) | (parseInt(col[4] + col[4], 16) << 24)) >>> 0;
             case 7: return col7(col);
             case 9: return col7(col) | (parseInt(col.slice(7, 9), 16) << 24);
         }
@@ -198,14 +198,14 @@ export function makeWebColor(col, g, b, a) {
             switch (col.length) {
                 case 4: case 5: return '#' + col[1] + col[1] + col[2] + col[2] + col[3] + col[3] + (col.length == 5 ? (col[4] + col[4]) : '');
                 case 7: case 9: return col;
-                default: return '#000000';
             }
-        } else if (parseInt(col)) {
+        } else if (!isNaN(Number(col))) {
             return makeWebColor(parseInt(col));
         } else {
             return col;
         }
     }
+    return '#000';
 }
 
 // (0-360, 0-1, 0-1)
@@ -270,7 +270,7 @@ export class DelaySender {
             if (this.cache !== undefined && (allowRepeat || !shallowEqual(this.cache, value))) {
                 let t = this.cache;
                 this.cache = undefined;
-                this.send(t);
+                await this.send(t);
             }
         } else {
             this.cache = value;
@@ -278,12 +278,35 @@ export class DelaySender {
     }
 }
 
-export function download(blob, name) {
-    let link = document.createElement('a');
-    link.href = window.URL.createObjectURL(blob);
+export function download(data, name, mimeType = 'application/octet-stream') {
+    let blob;
+
+    if (data instanceof Blob) {
+        blob = data;
+    } else if (data instanceof Uint8Array) {
+        blob = new Blob([data], { type: mimeType });
+    } else if (data instanceof ArrayBuffer) {
+        blob = new Blob([new Uint8Array(data)], { type: mimeType });
+    } else if (ArrayBuffer.isView(data)) {
+        blob = new Blob([data.buffer], { type: mimeType });
+    } else {
+        console.error('Download error');
+        return;
+    }
+
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+
+    link.href = url;
     link.download = name;
+    link.rel = 'noopener';
+    document.body.appendChild(link);
     link.click();
+
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
 }
+
 
 export function httpPost(url, data, progress) {
     return new Promise(res => {
@@ -460,7 +483,7 @@ export class EventEmitter {
 //#region LS
 export class LS {
     static has(key) {
-        return localStorage.hasOwnProperty(key);
+        return localStorage.getItem(key) !== null;
     }
     static get(key) {
         return JSON.parse(localStorage.getItem(key));
