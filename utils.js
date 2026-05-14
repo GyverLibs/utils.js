@@ -399,6 +399,45 @@ export class StreamSplitter {
     _buf = "";
 }
 
+//#region SerialExecutor
+export class SerialExecutor {
+    constructor() {
+        this._session = 0;
+        this.reset();
+    }
+
+    run(fn) {
+        const sess = this._session;
+
+        const task = this._queue.then(() => {
+            if (sess !== this._session) {
+                throw new Error("Queue empty");
+            }
+
+            return fn();
+        });
+
+        this._queue = task.catch(() => { });
+
+        return task;
+    }
+
+    runNothrow(fn) {
+        return this.run(fn).catch(() => null);
+    }
+
+    reset() {
+        this._session++;
+        this._queue = Promise.resolve();
+    }
+}
+
+/*
+send(data) {
+    return executor.run(() => real_async_send(data));
+}
+*/
+
 //#region ShiftBuffer
 export class ShiftBuffer {
     constructor() {
